@@ -53,6 +53,7 @@ class Section extends Component {
           (this.props.className ? ` ${this.props.className}` : '')
         }
         id={this.props.id}
+        onScroll={this.props.onScroll}
         style={sectionStyle}>
         {alignVertical ? this.renderVerticalAlign() : this.props.children}
       </div>
@@ -61,7 +62,8 @@ class Section extends Component {
 }
 
 Section.propTypes = {
-  color: PropTypes.string
+  color: PropTypes.string,
+  onScroll: PropTypes.func,
 };
 
 Section.contextTypes = {

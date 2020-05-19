@@ -100,6 +100,7 @@ var Section = function (_Component) {
         {
           className: this.context.sectionClassName + (this.props.className ? ' ' + this.props.className : ''),
           id: this.props.id,
+          onScroll: this.props.onScroll,
           style: sectionStyle },
         alignVertical ? this.renderVerticalAlign() : this.props.children
       );
@@ -110,7 +111,8 @@ var Section = function (_Component) {
 }(_react.Component);
 
 Section.propTypes = {
-  color: _propTypes2.default.string
+  color: _propTypes2.default.string,
+  onScroll: _propTypes2.default.func
 };
 
 Section.contextTypes = {

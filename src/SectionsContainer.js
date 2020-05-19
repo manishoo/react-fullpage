@@ -1,6 +1,43 @@
 import React, { Component, Children, cloneElement } from 'react';
 import PropTypes from 'prop-types';
 
+// Returns a function, that, when invoked, will only be triggered at most once
+// during a given window of time. Normally, the throttled function will run
+// as much as it can, without ever going more than once per `wait` duration;
+// but if you'd like to disable the execution on the leading edge, pass
+// `{leading: false}`. To disable execution on the trailing edge, ditto.
+function throttle(func, wait, options) {
+  var context, args, result;
+  var timeout = null;
+  var previous = 0;
+  if (!options) options = {};
+  var later = function() {
+    previous = options.leading === false ? 0 : Date.now();
+    timeout = null;
+    result = func.apply(context, args);
+    if (!timeout) context = args = null;
+  };
+  return function() {
+    var now = Date.now();
+    if (!previous && options.leading === false) previous = now;
+    var remaining = wait - (now - previous);
+    context = this;
+    args = arguments;
+    if (remaining <= 0 || remaining > wait) {
+      if (timeout) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+      previous = now;
+      result = func.apply(context, args);
+      if (!timeout) context = args = null;
+    } else if (!timeout && options.trailing !== false) {
+      timeout = setTimeout(later, remaining);
+    }
+    return result;
+  };
+};
+
 class SectionsContainer extends Component {
   state = {
     activeSection: this.props.activeSection,
@@ -135,8 +172,19 @@ class SectionsContainer extends Component {
     window.removeEventListener('DOMMouseScroll', this.handleMouseWheel);
   }
 
+  _lastScrollTimestamp
+
   handleMouseWheel = event => {
     const e = window.event || event; 
+    
+    let shouldContinue = true
+    if (this._lastScrollTimestamp && (e.timeStamp - this._lastScrollTimestamp) < 50) {
+      shouldContinue = false
+    }
+    this._lastScrollTimestamp = e.timeStamp
+
+    if (!shouldContinue) return false
+        
     const delta = Math.max(-1, Math.min(1, e.wheelDelta || -e.detail));
     const activeSection = this.state.activeSection - delta;
 
@@ -155,7 +203,7 @@ class SectionsContainer extends Component {
 
   handleResize = () => {
     const position = 0 - this.state.activeSection * window.innerHeight;
-
+    
     this.setState({
       scrollingStarted: true,
       windowHeight: window.innerHeight,
@@ -165,7 +213,9 @@ class SectionsContainer extends Component {
     this.resetScroll();
   }
 
-  handleSectionTransition = (index) => {
+  handleSectionTransition = (index, force) => {
+    if (!force && this.props.disabled) return null
+
     const position = 0 - index * this.state.windowHeight;
 
     if (
@@ -187,9 +237,6 @@ class SectionsContainer extends Component {
   }
 
   handleArrowKeys = (e) => {
-    
-    
-    
     const event = window.event ? window.event : e;
     const activeSection =
       event.keyCode === 38 || event.keyCode === 37
@@ -247,7 +294,7 @@ class SectionsContainer extends Component {
     touchsurface.addEventListener(
       'touchmove',
       function(e) {
-        e.preventDefault(); 
+        // e.preventDefault(); 
       },
       false
     );
@@ -291,12 +338,14 @@ class SectionsContainer extends Component {
     const activeSection = this.props.anchors.indexOf(hash);
 
     if (this.state.activeSection !== activeSection) {
-      this.handleSectionTransition(activeSection);
+      this.handleSectionTransition(activeSection, true);
       this.addActiveClass();
     }
   }
 
   setAnchor = (index) => {
+    if (this.props.disabled) return null
+
     const hash = this.props.anchors[index];
 
     if (!this.props.anchors.length || hash) {
@@ -350,16 +399,16 @@ class SectionsContainer extends Component {
         <a
           href={`#${link}`}
           key={index}
-          className={this.props.navigationAnchorClass || 'Navigation-Anchor'}
-          style={this.props.navigationAnchorClass ? null : anchorStyle}
+          className={'Navigation-Anchor'}
+          style={Object.assign({}, anchorStyle, this.props.navigationAnchorStyle)}
         />
       );
     });
 
     return (
       <div
-        className={this.props.navigationClass || 'Navigation'}
-        style={this.props.navigationClass ? null : navigationStyle}>
+        className={'Navigation'}
+        style={this.props.navigationStyle ? Object.assign({}, navigationStyle, this.props.navigationStyle) : null}>
         {anchors}
       </div>
     );
@@ -415,14 +464,15 @@ SectionsContainer.propTypes = {
   navigation: PropTypes.bool,
   className: PropTypes.string,
   sectionClassName: PropTypes.string,
-  navigationClass: PropTypes.string,
+  navigationStyle: PropTypes.object,
   navigationAnchorClass: PropTypes.string,
   activeClass: PropTypes.string,
   sectionPaddingTop: PropTypes.string,
   sectionPaddingBottom: PropTypes.string,
   arrowNavigation: PropTypes.bool,
   activeSection: PropTypes.number,
-  touchNavigation: PropTypes.bool
+  touchNavigation: PropTypes.bool,
+  disabled: PropTypes.bool,
 };
 
 SectionsContainer.childContextTypes = {

@@ -22,6 +22,43 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
+// Returns a function, that, when invoked, will only be triggered at most once
+// during a given window of time. Normally, the throttled function will run
+// as much as it can, without ever going more than once per `wait` duration;
+// but if you'd like to disable the execution on the leading edge, pass
+// `{leading: false}`. To disable execution on the trailing edge, ditto.
+function throttle(func, wait, options) {
+  var context, args, result;
+  var timeout = null;
+  var previous = 0;
+  if (!options) options = {};
+  var later = function later() {
+    previous = options.leading === false ? 0 : Date.now();
+    timeout = null;
+    result = func.apply(context, args);
+    if (!timeout) context = args = null;
+  };
+  return function () {
+    var now = Date.now();
+    if (!previous && options.leading === false) previous = now;
+    var remaining = wait - (now - previous);
+    context = this;
+    args = arguments;
+    if (remaining <= 0 || remaining > wait) {
+      if (timeout) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+      previous = now;
+      result = func.apply(context, args);
+      if (!timeout) context = args = null;
+    } else if (!timeout && options.trailing !== false) {
+      timeout = setTimeout(later, remaining);
+    }
+    return result;
+  };
+};
+
 var SectionsContainer = function (_Component) {
   _inherits(SectionsContainer, _Component);
 
@@ -94,6 +131,15 @@ var SectionsContainer = function (_Component) {
       window.removeEventListener('DOMMouseScroll', _this.handleMouseWheel);
     }, _this.handleMouseWheel = function (event) {
       var e = window.event || event;
+
+      var shouldContinue = true;
+      if (_this._lastScrollTimestamp && e.timeStamp - _this._lastScrollTimestamp < 50) {
+        shouldContinue = false;
+      }
+      _this._lastScrollTimestamp = e.timeStamp;
+
+      if (!shouldContinue) return false;
+
       var delta = Math.max(-1, Math.min(1, e.wheelDelta || -e.detail));
       var activeSection = _this.state.activeSection - delta;
 
@@ -114,7 +160,9 @@ var SectionsContainer = function (_Component) {
       });
 
       _this.resetScroll();
-    }, _this.handleSectionTransition = function (index) {
+    }, _this.handleSectionTransition = function (index, force) {
+      if (!force && _this.props.disabled) return null;
+
       var position = 0 - index * _this.state.windowHeight;
 
       if (!_this.props.anchors.length || index === -1 || index >= _this.props.anchors.length) {
@@ -130,7 +178,6 @@ var SectionsContainer = function (_Component) {
       _this.resetScroll();
       _this.handleScrollCallback();
     }, _this.handleArrowKeys = function (e) {
-
       var event = window.event ? window.event : e;
       var activeSection = event.keyCode === 38 || event.keyCode === 37 ? _this.state.activeSection - 1 : event.keyCode === 40 || event.keyCode === 39 ? _this.state.activeSection + 1 : -1;
 
@@ -170,7 +217,7 @@ var SectionsContainer = function (_Component) {
       }, false);
 
       touchsurface.addEventListener('touchmove', function (e) {
-        e.preventDefault();
+        // e.preventDefault(); 
       }, false);
 
       touchsurface.addEventListener('touchend', function (e) {
@@ -200,10 +247,12 @@ var SectionsContainer = function (_Component) {
       var activeSection = _this.props.anchors.indexOf(hash);
 
       if (_this.state.activeSection !== activeSection) {
-        _this.handleSectionTransition(activeSection);
+        _this.handleSectionTransition(activeSection, true);
         _this.addActiveClass();
       }
     }, _this.setAnchor = function (index) {
+      if (_this.props.disabled) return null;
+
       var hash = _this.props.anchors[index];
 
       if (!_this.props.anchors.length || hash) {
@@ -250,16 +299,16 @@ var SectionsContainer = function (_Component) {
         return _react2.default.createElement('a', {
           href: '#' + link,
           key: index,
-          className: _this.props.navigationAnchorClass || 'Navigation-Anchor',
-          style: _this.props.navigationAnchorClass ? null : anchorStyle
+          className: 'Navigation-Anchor',
+          style: Object.assign({}, anchorStyle, _this.props.navigationAnchorStyle)
         });
       });
 
       return _react2.default.createElement(
         'div',
         {
-          className: _this.props.navigationClass || 'Navigation',
-          style: _this.props.navigationClass ? null : navigationStyle },
+          className: 'Navigation',
+          style: _this.props.navigationStyle ? Object.assign({}, navigationStyle, _this.props.navigationStyle) : null },
         anchors
       );
     }, _temp), _possibleConstructorReturn(_this, _ret);
@@ -367,14 +416,15 @@ SectionsContainer.propTypes = {
   navigation: _propTypes2.default.bool,
   className: _propTypes2.default.string,
   sectionClassName: _propTypes2.default.string,
-  navigationClass: _propTypes2.default.string,
+  navigationStyle: _propTypes2.default.object,
   navigationAnchorClass: _propTypes2.default.string,
   activeClass: _propTypes2.default.string,
   sectionPaddingTop: _propTypes2.default.string,
   sectionPaddingBottom: _propTypes2.default.string,
   arrowNavigation: _propTypes2.default.bool,
   activeSection: _propTypes2.default.number,
-  touchNavigation: _propTypes2.default.bool
+  touchNavigation: _propTypes2.default.bool,
+  disabled: _propTypes2.default.bool
 };
 
 SectionsContainer.childContextTypes = {
